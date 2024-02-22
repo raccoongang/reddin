@@ -18,11 +18,13 @@ from .utils import AESCipher
 # Make '_' a no-op so we can scrape strings
 _ = lambda text: text
 
+
 @XBlock.needs('user')
 class ReddinXBlock(StudioEditableXBlockMixin, XBlock):
     """
     Xblock which render remote content by url in iframe and send crypted student data in GET param.
     """
+
     display_name = String(
         display_name=_("Display Name"),
         help=_("This name appears in the horizontal navigation at the top of the page."),
@@ -69,7 +71,7 @@ class ReddinXBlock(StudioEditableXBlockMixin, XBlock):
         parameters = ''
         if self.data_params:
             for key, value in self.data_params.items():
-                parameter = '&{}={}'.format(key, value)
+                parameter = f'&{key}={value}'
                 parameters += parameter
 
         if self.url:
@@ -102,6 +104,13 @@ class ReddinXBlock(StudioEditableXBlockMixin, XBlock):
         """
         return getattr(self.xmodule_runtime, 'user_is_staff', False)
 
+    @property
+    def reddin_secret_key(self):
+        """
+        Get Reddin secret key from settings
+        """
+        return getattr(settings, 'REDDIN_SECRET_KEY', '')
+
     def get_encoded_data(self):
         """
         Collect all data needed and encode it
@@ -113,9 +122,9 @@ class ReddinXBlock(StudioEditableXBlockMixin, XBlock):
             'course_id': str(self.course_id),
             'username': user.username,
             'email': user.email,
-            'fullname': "%s %s" % (user.first_name, user.last_name)
-
+            'fullname': f'{user.first_name} {user.last_name}'
         }
         row = json.dumps(data)
-        encoded = AESCipher(settings.FEATURES['REDDIT_SECRET_KEY']).encrypt(row)
-        return "?data=" + urllib.quote(encoded)
+        encoded = AESCipher(self.reddin_secret_key).encrypt(row)
+
+        return f'?data={urllib.parse.quote(encoded)}'

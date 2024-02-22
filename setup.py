@@ -29,6 +29,7 @@ setup(
     ],
     install_requires=[
         'XBlock',
+        'pycryptodome',
     ],
     entry_points={
         'xblock.v1': [

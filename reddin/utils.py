@@ -10,8 +10,8 @@ class AESCipher:
 
     def encrypt(self, raw):
         raw = self._pad(raw)
-        cipher = AES.new(self.key, AES.MODE_ECB)
-        return base64.b64encode(cipher.encrypt(raw))
+        cipher = AES.new(self.key.encode('utf-8'), AES.MODE_ECB)
+        return base64.b64encode(cipher.encrypt(raw.encode()))
 
     def decrypt(self, enc):
         enc = base64.b64decode(enc)
@@ -23,5 +23,3 @@ class AESCipher:
 
     def _unpad(self, s):
         return s[:-ord(s[len(s) - 1:])]
-
-
