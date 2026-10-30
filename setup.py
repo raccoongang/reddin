@@ -29,6 +29,7 @@ setup(
     ],
     install_requires=[
         'XBlock',
+        'web-fragments',
         'pycryptodome',
     ],
     entry_points={

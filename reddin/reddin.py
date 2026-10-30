@@ -2,15 +2,16 @@
 
 import json
 import urllib
+from importlib.resources import files
 
-import pkg_resources
+from web_fragments.fragment import Fragment
 from xblock.core import XBlock
-from xblock.fragment import Fragment
 from xblock.fields import Boolean, Dict, Scope, String
+from xblock.utils.studio_editable import StudioEditableXBlockMixin
 
+from django.contrib.auth import get_user_model
 from django.template import Template, Context
 from django.conf import settings
-from xblockutils.studio_editable import StudioEditableXBlockMixin
 from openedx.core.djangoapps.theming.helpers import get_current_request
 
 from .utils import AESCipher
@@ -56,8 +57,7 @@ class ReddinXBlock(StudioEditableXBlockMixin, XBlock):
 
     def resource_string(self, path):
         """Handy helper for getting resources from our kit."""
-        data = pkg_resources.resource_string(__name__, path)
-        return data.decode("utf8")
+        return files(__package__).joinpath(path).read_text(encoding="utf8")
 
     def student_view(self, context=None):
         """
@@ -97,13 +97,6 @@ class ReddinXBlock(StudioEditableXBlockMixin, XBlock):
         template = Template(template_str)
         return template.render(Context(context))
 
-    def is_course_staff(self):
-        # pylint: disable=no-member
-        """
-         Check if user is course staff.
-        """
-        return getattr(self.xmodule_runtime, 'user_is_staff', False)
-
     @property
     def reddin_secret_key(self):
         """
@@ -117,11 +110,14 @@ class ReddinXBlock(StudioEditableXBlockMixin, XBlock):
         Returns: string
 
         """
-        user = self.runtime.service(self, "user")._django_user
+        xblock_user = self.runtime.service(self, "user").get_current_user()
+        # First/last name aren't exposed by the user service; load them by id so
+        # masquerading staff still get the masqueraded learner's name.
+        user = get_user_model().objects.get(id=xblock_user.opt_attrs['edx-platform.user_id'])
         data = {
             'course_id': str(self.course_id),
-            'username': user.username,
-            'email': user.email,
+            'username': xblock_user.opt_attrs['edx-platform.username'],
+            'email': xblock_user.emails[0],
             'fullname': f'{user.first_name} {user.last_name}'
         }
         row = json.dumps(data)
