@@ -1,25 +1,19 @@
 import base64
 
 from Crypto.Cipher import AES
+from Crypto.Util.Padding import pad, unpad
 
 
 class AESCipher:
     def __init__(self, key):
         self.bs = 32
-        self.key = key
+        self.key = key.encode('utf-8')
 
     def encrypt(self, raw):
-        raw = self._pad(raw)
-        cipher = AES.new(self.key.encode('utf-8'), AES.MODE_ECB)
-        return base64.b64encode(cipher.encrypt(raw.encode()))
+        # pad the encoded bytes, not the str: non-ASCII chars are multi-byte
+        cipher = AES.new(self.key, AES.MODE_ECB)
+        return base64.b64encode(cipher.encrypt(pad(raw.encode('utf-8'), self.bs)))
 
     def decrypt(self, enc):
-        enc = base64.b64decode(enc)
         cipher = AES.new(self.key, AES.MODE_ECB)
-        return self._unpad(cipher.decrypt(enc))
-
-    def _pad(self, s):
-        return s + (self.bs - len(s) % self.bs) * chr(self.bs - len(s) % self.bs)
-
-    def _unpad(self, s):
-        return s[:-ord(s[len(s) - 1:])]
+        return unpad(cipher.decrypt(base64.b64decode(enc)), self.bs).decode('utf-8')
