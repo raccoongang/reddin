@@ -1,6 +1,7 @@
 """Xblock which render remote content by url in iframe and send crypted student data in GET param."""
 
 import json
+import logging
 import urllib
 from importlib.resources import files
 
@@ -15,6 +16,8 @@ from django.conf import settings
 from openedx.core.djangoapps.theming.helpers import get_current_request
 
 from .utils import AESCipher
+
+log = logging.getLogger(__name__)
 
 # Make '_' a no-op so we can scrape strings
 _ = lambda text: text
@@ -77,7 +80,11 @@ class ReddinXBlock(StudioEditableXBlockMixin, XBlock):
         if self.url:
             context['url_string'] = self.url + encoded + parameters
             if self.session_variable:
-                context['url_string'] += '&SessionID=' + get_current_request().COOKIES.get(settings.SESSION_COOKIE_NAME)
+                session_id = self.get_session_id()
+                if session_id:
+                    context['url_string'] += '&SessionID=' + urllib.parse.quote(session_id)
+                else:
+                    log.warning("Reddin block %s: no session cookie, SessionID omitted", self.scope_ids.usage_id)
         else:
             context['url_string'] = ''
 
@@ -96,6 +103,15 @@ class ReddinXBlock(StudioEditableXBlockMixin, XBlock):
         template_str = self.resource_string(template_path)
         template = Template(template_str)
         return template.render(Context(context))
+
+    def get_session_id(self):
+        """
+        Get the LMS/Studio session id of the current request, or None outside a request
+        """
+        request = get_current_request()
+        if request is None:
+            return None
+        return request.COOKIES.get(settings.SESSION_COOKIE_NAME)
 
     @property
     def reddin_secret_key(self):
