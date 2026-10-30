@@ -10,7 +10,6 @@ from xblock.core import XBlock
 from xblock.fields import Boolean, Dict, Scope, String
 from xblock.utils.studio_editable import StudioEditableXBlockMixin
 
-from django.contrib.auth import get_user_model
 from django.template import Template, Context
 from django.conf import settings
 from openedx.core.djangoapps.theming.helpers import get_current_request
@@ -127,14 +126,12 @@ class ReddinXBlock(StudioEditableXBlockMixin, XBlock):
 
         """
         xblock_user = self.runtime.service(self, "user").get_current_user()
-        # First/last name aren't exposed by the user service; load them by id so
-        # masquerading staff still get the masqueraded learner's name.
-        user = get_user_model().objects.get(id=xblock_user.opt_attrs['edx-platform.user_id'])
         data = {
             'course_id': str(self.course_id),
             'username': xblock_user.opt_attrs['edx-platform.username'],
             'email': xblock_user.emails[0],
-            'fullname': f'{user.first_name} {user.last_name}'
+            # profile.name: the full name learners enter at registration
+            'fullname': xblock_user.full_name or ''
         }
         row = json.dumps(data)
         encoded = AESCipher(self.reddin_secret_key).encrypt(row)
