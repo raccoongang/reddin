@@ -1,19 +1,22 @@
 """Xblock which render remote content by url in iframe and send crypted student data in GET param."""
 
 import json
+import logging
 import urllib
+from importlib.resources import files
 
-import pkg_resources
+from web_fragments.fragment import Fragment
 from xblock.core import XBlock
-from xblock.fragment import Fragment
 from xblock.fields import Boolean, Dict, Scope, String
+from xblock.utils.studio_editable import StudioEditableXBlockMixin
 
 from django.template import Template, Context
 from django.conf import settings
-from xblockutils.studio_editable import StudioEditableXBlockMixin
 from openedx.core.djangoapps.theming.helpers import get_current_request
 
 from .utils import AESCipher
+
+log = logging.getLogger(__name__)
 
 # Make '_' a no-op so we can scrape strings
 _ = lambda text: text
@@ -56,8 +59,7 @@ class ReddinXBlock(StudioEditableXBlockMixin, XBlock):
 
     def resource_string(self, path):
         """Handy helper for getting resources from our kit."""
-        data = pkg_resources.resource_string(__name__, path)
-        return data.decode("utf8")
+        return files(__package__).joinpath(path).read_text(encoding="utf8")
 
     def student_view(self, context=None):
         """
@@ -77,7 +79,11 @@ class ReddinXBlock(StudioEditableXBlockMixin, XBlock):
         if self.url:
             context['url_string'] = self.url + encoded + parameters
             if self.session_variable:
-                context['url_string'] += '&SessionID=' + get_current_request().COOKIES.get(settings.SESSION_COOKIE_NAME)
+                session_id = self.get_session_id()
+                if session_id:
+                    context['url_string'] += '&SessionID=' + urllib.parse.quote(session_id)
+                else:
+                    log.warning("Reddin block %s: no session cookie, SessionID omitted", self.scope_ids.usage_id)
         else:
             context['url_string'] = ''
 
@@ -97,12 +103,14 @@ class ReddinXBlock(StudioEditableXBlockMixin, XBlock):
         template = Template(template_str)
         return template.render(Context(context))
 
-    def is_course_staff(self):
-        # pylint: disable=no-member
+    def get_session_id(self):
         """
-         Check if user is course staff.
+        Get the LMS/Studio session id of the current request, or None outside a request
         """
-        return getattr(self.xmodule_runtime, 'user_is_staff', False)
+        request = get_current_request()
+        if request is None:
+            return None
+        return request.COOKIES.get(settings.SESSION_COOKIE_NAME)
 
     @property
     def reddin_secret_key(self):
@@ -117,12 +125,13 @@ class ReddinXBlock(StudioEditableXBlockMixin, XBlock):
         Returns: string
 
         """
-        user = self.runtime.service(self, "user")._django_user
+        xblock_user = self.runtime.service(self, "user").get_current_user()
         data = {
             'course_id': str(self.course_id),
-            'username': user.username,
-            'email': user.email,
-            'fullname': f'{user.first_name} {user.last_name}'
+            'username': xblock_user.opt_attrs.get('edx-platform.username', ''),
+            'email': xblock_user.emails[0] if xblock_user.emails else '',
+            # profile.name: the full name learners enter at registration
+            'fullname': xblock_user.full_name or ''
         }
         row = json.dumps(data)
         encoded = AESCipher(self.reddin_secret_key).encrypt(row)
