@@ -128,8 +128,8 @@ class ReddinXBlock(StudioEditableXBlockMixin, XBlock):
         xblock_user = self.runtime.service(self, "user").get_current_user()
         data = {
             'course_id': str(self.course_id),
-            'username': xblock_user.opt_attrs['edx-platform.username'],
-            'email': xblock_user.emails[0],
+            'username': xblock_user.opt_attrs.get('edx-platform.username', ''),
+            'email': xblock_user.emails[0] if xblock_user.emails else '',
             # profile.name: the full name learners enter at registration
             'fullname': xblock_user.full_name or ''
         }
