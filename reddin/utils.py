@@ -7,7 +7,8 @@ from Crypto.Util.Padding import pad, unpad
 class AESCipher:
     def __init__(self, key):
         self.bs = 32
-        self.key = key.encode('utf-8')
+        # str(): YAML-based deployment config may turn an all-digit key into an int
+        self.key = str(key).encode('utf-8')
 
     def encrypt(self, raw):
         # pad the encoded bytes, not the str: non-ASCII chars are multi-byte
